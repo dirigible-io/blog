@@ -3,7 +3,7 @@
   "columns":
     [
       {
-        "name":"Topic_ID",
+        "name":"TOPIC_ID",
         "type":"INTEGER",
         "length":"0",
         "notNull":"true",
@@ -12,7 +12,7 @@
       }
       ,
       {
-        "name":"User",
+        "name":"TOPIC_USER",
         "type":"VARCHAR",
         "length":"10",
         "notNull":"false",
@@ -21,7 +21,7 @@
       }
       ,
       {
-        "name":"Topic_name",
+        "name":"TOPIC_NAME",
         "type":"VARCHAR",
         "length":"100",
         "notNull":"false",
@@ -30,7 +30,7 @@
       }
       ,
       {
-        "name":"Topic_content",
+        "name":"TOPIC_CONTENT",
         "type":"VARCHAR",
         "length":"2000",
         "notNull":"false",
