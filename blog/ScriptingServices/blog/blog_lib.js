@@ -11,7 +11,7 @@ exports.createTest = function() {
         var sql = "INSERT INTO BLOG (";
         sql += "TOPIC_ID";
         sql += ",";
-        sql += "USER";
+        sql += "TOPIC_USER";
         sql += ",";
         sql += "TOPIC_NAME";
         sql += ",";
@@ -30,7 +30,7 @@ exports.createTest = function() {
         var i = 0;
         var id = db.getNext('BLOG_TOPIC_ID');
         statement.setInt(++i, id);
-        statement.setString(++i, message.user);
+        statement.setString(++i, message.topic_user);
         statement.setString(++i, message.topic_name);
         statement.setString(++i, message.topic_content);
         statement.executeUpdate();
@@ -111,7 +111,7 @@ exports.readTestList = function(limit, offset, sort, desc) {
 function createEntity(resultSet, data) {
     var result = {};
 	result.topic_id = resultSet.getInt("TOPIC_ID");
-    result.user = resultSet.getString("USER");
+    result.topic_user = resultSet.getString("TOPIC_USER");
     result.topic_name = resultSet.getString("TOPIC_NAME");
     result.topic_content = resultSet.getString("TOPIC_CONTENT");
     return result;
@@ -124,7 +124,7 @@ exports.updateTest = function() {
     var connection = datasource.getConnection();
     try {
         var sql = "UPDATE BLOG SET ";
-        sql += "USER = ?";
+        sql += "TOPIC_USER = ?";
         sql += ",";
         sql += "TOPIC_NAME = ?";
         sql += ",";
@@ -197,7 +197,7 @@ exports.metadataTest = function() {
     entityMetadata.properties.push(propertytopic_id);
 
 	var propertyuser = {};
-	propertyuser.name = 'user';
+	propertyuser.name = 'topic_user';
     propertyuser.type = 'string';
     entityMetadata.properties.push(propertyuser);
 
