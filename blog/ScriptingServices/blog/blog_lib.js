@@ -1,12 +1,14 @@
-var systemLib = require('system');
+/* globals $ */
+/* eslint-env node, dirigible */
+
 var ioLib = require('io');
 var entityLib = require('entity');
 
 // create entity by parsing JSON object from request body
-exports.createTest = function() {
-    var input = ioLib.read(request.getReader());
-    var message = JSON.parse(input);
-    var connection = datasource.getConnection();
+exports.createBlog = function() {
+    var input = ioLib.read($.getRequest().getInputStream());
+    var requestBody = JSON.parse(input);
+    var connection = $.getDatasource().getConnection();
     try {
         var sql = "INSERT INTO BLOG (";
         sql += "TOPIC_ID";
@@ -28,17 +30,17 @@ exports.createTest = function() {
 
         var statement = connection.prepareStatement(sql);
         var i = 0;
-        var id = db.getNext('BLOG_TOPIC_ID');
+        var id = $.getDatabaseUtils().getNext('BLOG_TOPIC_ID');
         statement.setInt(++i, id);
-        statement.setString(++i, message.topic_user);
-        statement.setString(++i, message.topic_name);
-        statement.setString(++i, message.topic_content);
+        statement.setString(++i, requestBody.topic_user);
+        statement.setString(++i, requestBody.topic_name);
+        statement.setString(++i, requestBody.topic_content);
         statement.executeUpdate();
-        response.getWriter().println(id);
+		$.getResponse().getWriter().println(id);
         return id;
     } catch(e) {
-        var errorCode = javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
-        entityLib.printError(errorCode, errorCode, e.message);
+        var errorCode = $.getResponse().SC_BAD_REQUEST;
+        entityLib.printError(errorCode, errorCode, e.message, sql);
     } finally {
         connection.close();
     }
@@ -46,40 +48,38 @@ exports.createTest = function() {
 };
 
 // read single entity by id and print as JSON object to response
-exports.readTestEntity = function(id) {
-    var connection = datasource.getConnection();
+exports.readBlogEntity = function(id) {
+    var connection = $.getDatasource().getConnection();
     try {
-        var result = "";
-        var sql = "SELECT * FROM BLOG WHERE " + pkToSQL();
+        var result;
+        var sql = "SELECT * FROM BLOG WHERE " + exports.pkToSQL();
         var statement = connection.prepareStatement(sql);
-        statement.setString(1, id);
+        statement.setInt(1, id);
         
         var resultSet = statement.executeQuery();
-        var value;
-        while (resultSet.next()) {
+        if (resultSet.next()) {
             result = createEntity(resultSet);
+        } else {
+        	entityLib.printError($.getResponse().SC_NOT_FOUND, 1, "Record with id: " + id + " does not exist.", sql);
         }
-        if(result.length === 0){
-            entityLib.printError(javax.servlet.http.HttpServletResponse.SC_NOT_FOUND, 1, "Record with id: " + id + " does not exist.");
-        }
-        var text = JSON.stringify(result, null, 2);
-        response.getWriter().println(text);
+        var jsonResponse = JSON.stringify(result, null, 2);
+        $.getResponse().getWriter().println(jsonResponse);
     } catch(e){
-        var errorCode = javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
-        entityLib.printError(errorCode, errorCode, e.message);
+        var errorCode = $.getResponse().SC_BAD_REQUEST;
+        entityLib.printError(errorCode, errorCode, e.message, sql);
     } finally {
         connection.close();
     }
 };
 
 // read all entities and print them as JSON array to response
-exports.readTestList = function(limit, offset, sort, desc) {
-    var connection = datasource.getConnection();
+exports.readBlogList = function(limit, offset, sort, desc) {
+    var connection = $.getDatasource().getConnection();
     try {
         var result = [];
         var sql = "SELECT ";
         if (limit !== null && offset !== null) {
-            sql += " " + db.createTopAndStart(limit, offset);
+            sql += " " + $.getDatabaseUtils().createTopAndStart(limit, offset);
         }
         sql += " * FROM BLOG";
         if (sort !== null) {
@@ -89,39 +89,45 @@ exports.readTestList = function(limit, offset, sort, desc) {
             sql += " DESC ";
         }
         if (limit !== null && offset !== null) {
-            sql += " " + db.createLimitAndOffset(limit, offset);
+            sql += " " + $.getDatabaseUtils().createLimitAndOffset(limit, offset);
         }
         var statement = connection.prepareStatement(sql);
         var resultSet = statement.executeQuery();
-        var value;
         while (resultSet.next()) {
             result.push(createEntity(resultSet));
         }
-        var text = JSON.stringify(result, null, 2);
-        response.getWriter().println(text);
+        var jsonResponse = JSON.stringify(result, null, 2);
+        $.getResponse().getWriter().println(jsonResponse);
     } catch(e){
-        var errorCode = javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
-        entityLib.printError(errorCode, errorCode, e.message);
+        var errorCode = $.getResponse().SC_BAD_REQUEST;
+        entityLib.printError(errorCode, errorCode, e.message, sql);
     } finally {
         connection.close();
     }
 };
 
 //create entity as JSON object from ResultSet current Row
-function createEntity(resultSet, data) {
+function createEntity(resultSet) {
     var result = {};
 	result.topic_id = resultSet.getInt("TOPIC_ID");
     result.topic_user = resultSet.getString("TOPIC_USER");
     result.topic_name = resultSet.getString("TOPIC_NAME");
     result.topic_content = resultSet.getString("TOPIC_CONTENT");
     return result;
-};
+}
+
+function convertToDateString(date) {
+    var fullYear = date.getFullYear();
+    var month = date.getMonth() < 10 ? "0" + date.getMonth() : date.getMonth();
+    var dateOfMonth = date.getDate() < 10 ? "0" + date.getDate() : date.getDate();
+    return fullYear + "/" + month + "/" + dateOfMonth;
+}
 
 // update entity by id
-exports.updateTest = function() {
-    var input = ioLib.read(request.getReader());
-    var message = JSON.parse(input);
-    var connection = datasource.getConnection();
+exports.updateBlog = function() {
+    var input = ioLib.read($.getRequest().getInputStream());
+    var responseBody = JSON.parse(input);
+    var connection = $.getDatasource().getConnection();
     try {
         var sql = "UPDATE BLOG SET ";
         sql += "TOPIC_USER = ?";
@@ -132,165 +138,111 @@ exports.updateTest = function() {
         sql += " WHERE TOPIC_ID = ?";
         var statement = connection.prepareStatement(sql);
         var i = 0;
-        statement.setString(++i, message.user);
-        statement.setString(++i, message.topic_name);
-        statement.setString(++i, message.topic_content);
-        var id = "";
-        id = message.topic_id;
+        statement.setString(++i, responseBody.topic_user);
+        statement.setString(++i, responseBody.topic_name);
+        statement.setString(++i, responseBody.topic_content);
+        var id = responseBody.topic_id;
         statement.setInt(++i, id);
         statement.executeUpdate();
-        response.getWriter().println(id);
+		$.getResponse().getWriter().println(id);
     } catch(e){
-        var errorCode = javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
-        entityLib.printError(errorCode, errorCode, e.message);
+        var errorCode = $.getResponse().SC_BAD_REQUEST;
+        entityLib.printError(errorCode, errorCode, e.message, sql);
     } finally {
         connection.close();
     }
 };
 
 // delete entity
-exports.deleteTest = function(id) {
-    var connection = datasource.getConnection();
+exports.deleteBlog = function(id) {
+    var connection = $.getDatasource().getConnection();
     try {
-        var sql = "DELETE FROM BLOG WHERE "+pkToSQL();
+    	var sql = "DELETE FROM BLOG WHERE " + exports.pkToSQL();
         var statement = connection.prepareStatement(sql);
         statement.setString(1, id);
-        var resultSet = statement.executeUpdate();
-        response.getWriter().println(id);
+        statement.executeUpdate();
+        $.getResponse().getWriter().println(id);
     } catch(e){
-        var errorCode = javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
-        entityLib.printError(errorCode, errorCode, e.message);
+        var errorCode = $.getResponse().SC_BAD_REQUEST;
+        entityLib.printError(errorCode, errorCode, e.message, sql);
     } finally {
         connection.close();
     }
 };
 
-exports.countTest = function() {
+exports.countBlog = function() {
     var count = 0;
-    var connection = datasource.getConnection();
+    var connection = $.getDatasource().getConnection();
     try {
+    	var sql = 'SELECT COUNT(*) FROM BLOG';
         var statement = connection.createStatement();
-        var rs = statement.executeQuery('SELECT COUNT(*) FROM BLOG');
-        while (rs.next()) {
+        var rs = statement.executeQuery(sql);
+        if (rs.next()) {
             count = rs.getInt(1);
         }
     } catch(e){
-        var errorCode = javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
-        entityLib.printError(errorCode, errorCode, e.message);
+        var errorCode = $.getResponse().SC_BAD_REQUEST;
+        entityLib.printError(errorCode, errorCode, e.message, sql);
     } finally {
         connection.close();
     }
-    response.getWriter().println(count);
+    $.getResponse().getWriter().println(count);
 };
 
-exports.metadataTest = function() {
-	var entityMetadata = {};
-	entityMetadata.name = 'blog';
-	entityMetadata.type = 'object';
-	entityMetadata.properties = [];
+exports.metadataBlog = function() {
+	var entityMetadata = {
+		name: 'blog',
+		type: 'object',
+		properties: []
+	};
 	
-	var propertytopic_id = {};
-	propertytopic_id.name = 'topic_id';
-	propertytopic_id.type = 'integer';
-	propertytopic_id.key = 'true';
-	propertytopic_id.required = 'true';
+	var propertytopic_id = {
+		name: 'topic_id',
+		type: 'integer',
+	key: 'true',
+	required: 'true'
+	};
     entityMetadata.properties.push(propertytopic_id);
 
-	var propertyuser = {};
-	propertyuser.name = 'topic_user';
-    propertyuser.type = 'string';
-    entityMetadata.properties.push(propertyuser);
+	var propertytopic_user = {
+		name: 'topic_user',
+		type: 'string'
+	};
+    entityMetadata.properties.push(propertytopic_user);
 
-	var propertytopic_name = {};
-	propertytopic_name.name = 'topic_name';
-    propertytopic_name.type = 'string';
+	var propertytopic_name = {
+		name: 'topic_name',
+		type: 'string'
+	};
     entityMetadata.properties.push(propertytopic_name);
 
-	var propertytopic_content = {};
-	propertytopic_content.name = 'topic_content';
-    propertytopic_content.type = 'string';
+	var propertytopic_content = {
+		name: 'topic_content',
+		type: 'string'
+	};
     entityMetadata.properties.push(propertytopic_content);
 
 
-    response.getWriter().println(JSON.stringify(entityMetadata));
+	$.getResponse().getWriter().println(JSON.stringify(entityMetadata));
 };
 
-function getPrimaryKeys(){
+exports.getPrimaryKeys = function() {
     var result = [];
     var i = 0;
     result[i++] = 'TOPIC_ID';
     if (result === 0) {
-        throw new Exception("There is no primary key");
+        throw $.getExceptionUtils().createException("There is no primary key");
     } else if(result.length > 1) {
-        throw new Exception("More than one Primary Key is not supported.");
+        throw $.getExceptionUtils().createException("More than one Primary Key is not supported.");
     }
     return result;
-}
+};
 
-function getPrimaryKey(){
-	return getPrimaryKeys()[0].toLowerCase();
-}
+exports.getPrimaryKey = function() {
+	return exports.getPrimaryKeys()[0].toLowerCase();
+};
 
-function pkToSQL(){
-    var pks = getPrimaryKeys();
+exports.pkToSQL = function() {
+    var pks = exports.getPrimaryKeys();
     return pks[0] + " = ?";
-}
-
-exports.processTest = function() {
-	
-	// get method type
-	var method = request.getMethod();
-	method = method.toUpperCase();
-	
-	//get primary keys (one primary key is supported!)
-	var idParameter = getPrimaryKey();
-	
-	// retrieve the id as parameter if exist 
-	var id = xss.escapeSql(request.getParameter(idParameter));
-	var count = xss.escapeSql(request.getParameter('count'));
-	var metadata = xss.escapeSql(request.getParameter('metadata'));
-	var sort = xss.escapeSql(request.getParameter('sort'));
-	var limit = xss.escapeSql(request.getParameter('limit'));
-	var offset = xss.escapeSql(request.getParameter('offset'));
-	var desc = xss.escapeSql(request.getParameter('desc'));
-	
-	if (limit === null) {
-		limit = 100;
-	}
-	if (offset === null) {
-		offset = 0;
-	}
-	
-	if(!entityLib.hasConflictingParameters(id, count, metadata)) {
-		// switch based on method type
-		if ((method === 'POST')) {
-			// create
-			exports.createTest();
-		} else if ((method === 'GET')) {
-			// read
-			if (id) {
-				exports.readTestEntity(id);
-			} else if (count !== null) {
-				exports.countTest();
-			} else if (metadata !== null) {
-				exports.metadataTest();
-			} else {
-				exports.readTestList(limit, offset, sort, desc);
-			}
-		} else if ((method === 'PUT')) {
-			// update
-			exports.updateTest();    
-		} else if ((method === 'DELETE')) {
-			// delete
-			if(entityLib.isInputParameterValid(idParameter)){
-				exports.deleteTest(id);
-			}
-		} else {
-			entityLib.printError(javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST, 1, "Invalid HTTP Method");
-		}
-	}
-	
-	// flush and close the response
-	response.getWriter().flush();
-	response.getWriter().close();
 };
